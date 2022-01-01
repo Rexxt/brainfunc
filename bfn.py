@@ -147,8 +147,6 @@ class Brainfunc:
                         self.tape[self.pointer + char_index] = ord(user_input[char_index])
                 elif char == '!': # Halt
                     return False, HaltError((li, ci), line, self.tape[self.pointer])
-                else:
-                    self.output += char # Debug
                 ci += 1
             li += 1
         return True, None

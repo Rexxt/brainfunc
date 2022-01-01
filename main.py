@@ -1,11 +1,15 @@
 import bfn
 import sys
 
+def reset_pointer(self):
+    self.pointer = 0
+
 interpreter = bfn.Brainfunc(functions={
     'pushR': '[->+<]', # push right
     'pushL': '[-<+>]', # push left
     '255': '[-]+[+~]', # set to 255
     'newline': '>[-]++++++++++.[-]<', # newline (ascii 10)
+    'resetPointer': reset_pointer, # reset pointer
 })
 
 if len(sys.argv) == 1:
@@ -43,7 +47,7 @@ else:
         {err.line_string}
         {str(err)}""")
                 else:
-                    print(interpreter.output)
+                    print(interpreter.output, end='')
     except FileNotFoundError:
         print("File not found")
     except EOFError:
