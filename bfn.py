@@ -98,6 +98,7 @@ class Brainfunc:
         self.functions = functions
         self.tape = [0]
         self.pointer = 0
+        self.output = ''
     
     def reset(self):
         self.tape = [0]
@@ -105,6 +106,7 @@ class Brainfunc:
     
     def run(self, code):
         deftree = []
+        self.output = ''
         lines = code.split('\n')
         li = 0
         while li < len(lines):
@@ -114,120 +116,39 @@ class Brainfunc:
                 char = line[ci]
                 if char == '#': # Comment
                     break
-                elif char == '>': # Increment pointer
-                    # If out of bounds, extend tape
-                    if len(deftree) == 0:
-                        if self.pointer + 1 >= len(self.tape):
+                elif char == '%': # Comment (multiline)
+                    # go to matching %
+                    ci += 1
+                    while ci < len(line):
+                        if line[ci] == '%':
+                            break
+                        ci += 1
+                elif char == '>': # Increment pointer if pointer + 1 < tape length, else append 1 to tape
+                    self.pointer += 1
+                    if self.pointer >= len(self.tape):
+                        self.tape.append(0)
+                elif char == '<': # Decrement pointer if pointer > 0, else go to last element in tape
+                    self.pointer -= 1
+                    if self.pointer < 0:
+                        self.pointer = len(self.tape) - 1
+                elif char == '+': # Increment value at pointer
+                    self.tape[self.pointer] += 1
+                elif char == '-': # Decrement value at pointer
+                    self.tape[self.pointer] -= 1
+                elif char == '.': # Output value at pointer
+                    self.output += chr(self.tape[self.pointer])
+                elif char == ':': # Output literal number value
+                    self.output += str(self.tape[self.pointer])
+                elif char == ',': # Input value at pointer (multiple characters)
+                    user_input = input()
+                    for char_index in range(len(user_input)):
+                        if self.pointer + char_index >= len(self.tape):
                             self.tape.append(0)
-                        self.pointer += 1
-                elif char == '<': # Decrement pointer
-                    # If out of bounds, go to end of tape
-                    if len(deftree) == 0:
-                        if self.pointer - 1 < 0:
-                            self.pointer = len(self.tape) - 1
-                        else:
-                            self.pointer -= 1
-                elif char == '+': # Increment value
-                    if len(deftree) == 0:
-                        self.tape[self.pointer] += 1
-                elif char == '-': # Decrement value
-                    if len(deftree) == 0:
-                        self.tape[self.pointer] -= 1
-                elif char == '.': # Output value as ASCII character
-                    # If not valid ASCII, raise error
-                    if len(deftree) == 0:
-                        if self.tape[self.pointer] < 0 or self.tape[self.pointer] > 255:
-                            return False, NotASCIIError((li, ci), line, self.tape[self.pointer])
-                        print(chr(self.tape[self.pointer]), end='')
-                elif char == ':': # print literal number value
-                    if len(deftree) == 0:
-                        print(self.tape[self.pointer], end='')
-                elif char == ',': # Input value
-                    if len(deftree) == 0:
-                        uinput = input()
-                        if len(uinput) == 0:
-                            self.tape[self.pointer] = 0
-                        else:
-                            for uici in range(len(uinput)):
-                                self.tape[self.pointer + uici] = ord(uinput[uici])
-                elif char == '[': # While tape[pointer] != 0, loop
-                    if len(deftree) == 0:
-                        if self.tape[self.pointer] == 0:
-                            nests = 0
-                            # run through code until ] is found, while accounting for loop nesting
-                            while nests != 0 or line[ci] != ']':
-                                if line[ci] == '[':
-                                    nests += 1
-                                elif line[ci] == ']':
-                                    nests -= 1
-                                ci += 1
-                                if ci >= len(line): li += 1
-                        else:
-                            deftree.append(["loop", li, ci])
-                elif char == ']': # End loop
-                    if len(deftree) == 0 or deftree[-1][0] != "loop":
-                        return False, UnmatchedBracketError((li, ci), line, self.tape[self.pointer])
-                    else:
-                        if deftree[-1][0] == "loop":
-                            if self.tape[self.pointer] != 0:
-                                li = deftree[-1][1]
-                                ci = deftree[-1][2]
-                            else:
-                                deftree.pop()
-                elif char == '~': # Break out of loop if tape[pointer] > 255
-                    if len(deftree) == 0 or deftree[-1][0] != "loop":
-                        return False, BreakOutOfLoopError((li, ci), line, self.tape[self.pointer])
-                    else:
-                        if deftree[-1][0] == "loop":
-                            if self.tape[self.pointer] > 255:
-                                nests = 0
-                                # run through code until ] is found, while accounting for loop nesting
-                                while nests != 0 or line[ci] != ']':
-                                    if line[ci] == '[':
-                                        nests += 1
-                                    elif line[ci] == ']':
-                                        nests -= 1
-                                    ci += 1
-                                    if ci >= len(line): li += 1
-                        else:
-                            return False, BreakOutOfLoopError((li, ci), line, self.tape[self.pointer])
-                elif char == '$': # Start definition (syntax: $name{code})
-                    deftree.append(["def", '', '', 'name'])
-                elif char == '(': # Start function call (syntax: (name))
-                    deftree.append(["call", ''])
-                elif char == ')': # End function call and run
-                    if len(deftree) == 0 or deftree[-1][0] != "call":
-                        return False, UnmatchedBracketError((li, ci), line, self.tape[self.pointer])
-                    if not re.match("[a-zA-Z0-9_]+", deftree[-1][1]):
-                        return False, InvalidFunctionNameError((li, ci), line, deftree[-1][1])
-                    if not deftree[-1][1] in self.functions:
-                        return False, FunctionNotDefinedError((li, ci), line, deftree[-1][1])
-                    self.run(self.functions[deftree[-1][1]])
+                        self.tape[self.pointer + char_index] = ord(user_input[char_index])
+                elif char == '!': # Halt
+                    return False, HaltError((li, ci), line, self.tape[self.pointer])
                 else:
-                    if len(deftree) != 0:
-                        if deftree[-1][0] == 'def':
-                            if deftree[-1][3] == 'name':
-                                if char == '{':
-                                    if not re.match('[a-zA-Z0-9_]+', line[ci+1:].strip()):
-                                        return False, InvalidFunctionNameError((li, ci), line, line[ci+1:].strip())
-                                    deftree[-1][3] = 'code'
-                                else:
-                                    deftree[-1][1] += char
-                            elif deftree[-1][3] == 'code':
-                                if char == '}':
-                                    self.functions[deftree[-1][1]] = deftree[-1][2]
-                                    deftree.pop()
-                                else:
-                                    deftree[-1][2] += char
-                        elif deftree[-1][0] == 'call':
-                            if char == ')':
-                                if deftree[-1][1] in self.functions:
-                                    self.run(self.functions[deftree[-1][1]])
-                                else:
-                                    return False, FunctionNotDefinedError((li, ci), line, deftree[-1][1])
-                                deftree.pop()
-                            else:
-                                deftree[-1][1] += char
+                    self.output += char # Debug
                 ci += 1
             li += 1
         return True, None
